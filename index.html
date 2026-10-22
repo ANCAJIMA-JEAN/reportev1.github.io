@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seguimiento de reportes · Subgerencia de Producción</title>
+<style>
+:root{--ok:#2E7D32;--warn:#B77900;--bad:#C62828;--gr:#757575;--ink:#1d2421;--line:#d9ded9;--bg:#f4f6f4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif}
+a{color:var(--ok)}
+header.top{background:#fff;border-bottom:3px solid var(--ok);padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;position:sticky;top:0;z-index:5}
+header.top h1{font-size:1.05rem;margin:0;flex:1 1 16rem}
+header.top small{color:var(--gr)}
+#conn{font-size:.8rem;padding:.1rem .5rem;border-radius:1rem;border:1px solid currentColor}
+main{max-width:76rem;margin:0 auto;padding:1rem}
+h2{margin:.3rem 0 0}h3{margin:1.4rem 0 .5rem;font-size:1.05rem}
+.sub{color:var(--gr);margin:.1rem 0 .6rem}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.gr{color:var(--gr)}
+button,.btn{font:inherit;padding:.4rem .8rem;border:1px solid var(--line);background:#fff;border-radius:4px;cursor:pointer;text-decoration:none;color:var(--ink);display:inline-block}
+button.pri,.btn.pri{background:var(--ok);border-color:var(--ok);color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}
+input,select,textarea{font:inherit;padding:.4rem;border:1px solid #b9c1ba;border-radius:4px;width:100%;background:#fff}
+textarea{min-height:4.5rem;resize:vertical}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:.5rem;margin:.5rem 0}
+.kpi{background:#fff;border:1px solid var(--line);border-left:4px solid var(--ok);padding:.4rem .6rem}
+.kpi b{font-size:1.4rem;display:block}.kpi span{font-size:.8rem;color:var(--gr)}
+.bar{display:flex;gap:.5rem;margin:.8rem 0}.bar input{max-width:22rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:.8rem}
+.card{background:#fff;border:1px solid var(--line);border-left:6px solid currentColor;padding:.8rem;display:flex;flex-direction:column;gap:.35rem}
+.card>*{color:var(--ink);margin:0}.card h3{margin:0}.card small{color:var(--gr)}
+.card .alerta{color:var(--warn);font-size:.85rem}
+.card footer{margin-top:auto;display:flex;gap:.4rem;padding-top:.4rem}
+.cnt,.perm{display:flex;flex-wrap:wrap;gap:.2rem .8rem;font-size:.85rem}
+.dot{display:inline-block;width:.7rem;height:.7rem;border-radius:50%;background:currentColor;margin-right:.4rem}
+section{background:#fff;border:1px solid var(--line);padding:.2rem 1rem 1rem;margin-top:1rem}
+dl{margin:0}dt{font-weight:600;margin-top:.7rem}dd{margin:0;white-space:pre-wrap}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:42rem}
+th,td{border-bottom:1px solid var(--line);padding:.4rem;text-align:left;vertical-align:top}
+td small{display:block;color:var(--gr)}tr.venc td:first-child{border-left:4px solid var(--bad)}
+details{border-bottom:1px solid var(--line);padding:.4rem 0}summary{cursor:pointer;font-weight:600}
+label{display:block;font-weight:600;margin-top:.7rem}.f2{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:0 1rem}
+fieldset.np{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.4rem;border:1px solid var(--line);margin:.5rem 0;padding:.5rem}
+fieldset.np label{font-weight:400;margin:0;align-self:center}fieldset.np label input{width:auto}
+.msg{padding:.6rem .8rem;background:#fff;border:1px solid var(--line)}.msg.bad{border-color:var(--bad)}
+.aviso{color:var(--warn);font-size:.9rem;margin:.2rem 0}
+#toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.6rem 1rem;border-radius:4px;display:none;max-width:90vw;z-index:9}
+#toast.show{display:block}#toast.bad{background:var(--bad)}
+@media (prefers-reduced-motion:no-preference){.card{transition:box-shadow .15s}.card:hover{box-shadow:0 2px 8px #0002}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Seguimiento de reportes · Subgerencia de Producción<br><small id="sem">Cargando…</small></h1>
+  <span id="conn" class="gr">Conectando…</span>
+  <button id="act">Actualizar</button>
+</header>
+<main id="v"></main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="config.js"></script>
+<script>
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DIAS=['','lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+const TONO={'Entregado':'ok','Con observaciones':'warn','Pendiente de entrega':'gr','En generación':'gr','Error de carga/procesamiento':'bad','Verde':'ok','Ámbar':'warn','Rojo':'bad','Crítica':'bad','Alta':'warn','Media':'gr','Baja':'gr'};
+let CFG=null,DASH=null;const V=$('#v');
+const quien=()=>localStorage.getItem('por')||'';
+const op=l=>l.map(x=>`<option>${esc(x)}</option>`).join('');
+const corto=s=>{s=String(s||'');return s.length>140?s.slice(0,137)+'…':s};
+function toast(m,bad){const t=$('#toast');t.textContent=m;t.className=bad?'bad show':'show';clearTimeout(toast.i);toast.i=setTimeout(()=>t.className='',6000)}
+function conn(ok){const c=$('#conn');c.className=ok?'ok':'bad';c.textContent=ok?'Conectado':'Sin conexión'}
+async function api(accion,datos,post){
+  const u=window.CONFIG.API_URL;let r;
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(u))throw new Error('Falta configurar la URL del servidor en config.js.');
+  try{
+    r=post?await fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion,datos})})
+          :await fetch(u+'?'+new URLSearchParams(Object.assign({accion},datos?{datos:JSON.stringify(datos)}:{})));
+    r=await r.json();
+  }catch(e){conn(false);throw new Error('No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.')}
+  conn(true);
+  if(!r.ok){const e=new Error(r.error.mensaje);e.codigo=r.error.codigo;e.detalle=r.error.detalle;throw e}
+  return r.datos;
+}
+function iso(s){const[y,m,d]=s.split('-').map(Number),t=new Date(Date.UTC(y,m-1,d)),w=(t.getUTCDay()+6)%7;t.setUTCDate(t.getUTCDate()-w+3);const j=new Date(Date.UTC(t.getUTCFullYear(),0,4));return{a:t.getUTCFullYear(),s:1+Math.round(((t-j)/864e5-3+(j.getUTCDay()+6)%7)/7),dow:w+1}}
+const verd=v=>v===true||String(v).toUpperCase()==='TRUE';
+
+let NAV=0;
+async function ruta(){
+  const n=++NAV,[,a,id]=location.hash.split('/');
+  V.innerHTML='<p class="msg">Cargando…</p>';
+  try{
+    CFG=CFG||await api('obtenerConfiguracion');
+    if(n!==NAV)return;
+    if(a==='area')await vArea(id,n);else if(a==='nuevo')await vForm(id,n);else await vPanel(n);
+    if(n===NAV)scrollTo(0,0);
+  }catch(e){if(n!==NAV)return;V.innerHTML=`<p class="msg bad">${esc(e.message)}</p><button onclick="ruta()">Reintentar</button>`;$('#sem').textContent='Sin datos'}
+}
+addEventListener('hashchange',ruta);
+$('#act').onclick=()=>{CFG=null;DASH=null;ruta()};
+
+/* ---------- Panel ---------- */
+const perm=p=>`<span class="${p.Registro_Habilitado?'ok':'bad'}">Registro ${p.Registro_Habilitado?'habilitado':'bloqueado'}</span><span class="${p.Edicion_Habilitada?'ok':'bad'}">Edición ${p.Edicion_Habilitada?'habilitada':'bloqueada'}</span>`;
+function card(a){
+  const u=a.Ultimo_Reporte,p=a.Permisos,v=a.Ventana_Entrega;
+  return `<article class="card ${TONO[a.Estado_Semana_Actual]||'gr'}">
+  <div><h3>${esc(a.Nombre_Area)}</h3><small>${esc(a.Responsable)}</small></div>
+  <p><b>${esc(a.Estado_Semana_Actual)}</b> esta semana${v?`<br><small>Entrega de ${v.Inicio} a ${v.Limite}${v.Abierta_Hoy?' · ventana abierta hoy':''}</small>`:''}</p>
+  ${a.Sin_Reporte_Semana_Anterior?'<p class="alerta">Sin reporte registrado en la semana anterior</p>':''}
+  ${u?`<p><span class="dot ${TONO[u.Semaforo]||'gr'}"></span>Último: semana ${u.Semana_ISO}, ${esc(u.Fecha_Entrega)}<br><small>${esc(corto(u.Resumen_Ejecutivo))}</small></p>`:'<p class="gr">Sin reportes registrados.</p>'}
+  <p class="cnt"><span>${a.Pendientes_Abiertos} pendientes abiertos</span><span>${a.Pendientes_Criticos} críticos</span><span>${a.Incidencias_Abiertas} incidencias abiertas</span></p>
+  <p class="perm">${perm(p)}</p>
+  <footer><a class="btn" href="#/area/${a.ID_Area}">Abrir</a>${p.Registro_Habilitado?`<a class="btn pri" href="#/nuevo/${a.ID_Area}">Nuevo reporte</a>`:'<button disabled title="El registro está bloqueado para esta área">Nuevo reporte</button>'}</footer></article>`;
+}
+async function vPanel(n){
+  DASH=await api('obtenerDashboard');
+  if(n!==NAV)return;
+  $('#sem').textContent=`Semana ${DASH.Semana_ISO} de ${DASH.Anio_ISO} · actualizado ${new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}`;
+  V.innerHTML=`${DASH.Mensaje?`<p class="msg">${esc(DASH.Mensaje)}</p>`:''}
+  <div class="kpis">${DASH.Indicadores.map(i=>`<div class="kpi"><b>${i.Valor??'—'}${i.Id==='cumplimiento'&&i.Valor!=null?'%':''}</b><span>${esc(i.Nombre)}</span></div>`).join('')}</div>
+  <details><summary>Cómo se calculan los indicadores</summary><ul>${DASH.Indicadores.map(i=>`<li><b>${esc(i.Nombre)}:</b> ${esc(i.Formula)}. <i>${esc(i.Periodo)}</i></li>`).join('')}</ul></details>
+  <div class="bar"><input id="q" type="search" placeholder="Filtrar áreas por nombre o responsable" aria-label="Filtrar áreas"></div>
+  <div class="grid" id="g"></div>`;
+  const pintar=()=>{const q=$('#q').value.toLowerCase();const l=DASH.Areas.filter(a=>(a.Nombre_Area+' '+a.Responsable).toLowerCase().includes(q));$('#g').innerHTML=l.map(card).join('')||'<p class="msg">Ninguna área coincide con el filtro.</p>'};
+  $('#q').oninput=pintar;pintar();
+}
+
+/* ---------- Vista de área ---------- */
+const CAMPOS=[['Resumen_Ejecutivo','Resumen ejecutivo'],['Avances','Avances'],['Alertas','Alertas'],['Focos_Proxima_Semana','Focos de la próxima semana'],['Apoyo_Requerido','Apoyo requerido'],['Observaciones','Observaciones']];
+const rep=r=>`<p class="sub">Entrega ${esc(r.Fecha_Entrega)} · estado: ${esc(r.Estado_Entrega)} · versión ${r.Version} · declarado por ${esc(r.Responsable_Declarado)} (dato declarado, no verificado)</p><dl>${CAMPOS.map(([k,t])=>`<dt>${t}</dt><dd>${esc(r[k])||'<span class="gr">Sin información registrada</span>'}</dd>`).join('')}</dl>`;
+function filaP(p,ed,estados){
+  return `<tr class="${p.Vencido?'venc':''}"><td>${esc(p.ID_Pendiente)}<small>Sem. ${p.Semana_Origen} · ${p.Antiguedad_Dias??'?'} d</small></td>
+  <td>${esc(p.Descripcion)}<small>${esc(p.Impacto_Riesgo)}</small></td><td class="${TONO[p.Prioridad]||''}">${esc(p.Prioridad)}</td>
+  <td>${esc(p.Responsable_Declarado)}</td><td>${esc(p.Fecha_Objetivo)||(p.Semana_Objetivo?'Sem. '+p.Semana_Objetivo:'Sin fecha')}${p.Vencido?'<small class="bad">Vencido</small>':''}</td>
+  <td><select aria-label="Estado de ${esc(p.ID_Pendiente)}" ${ed?'':'disabled'}>${estados.map(e=>`<option ${e===p.Estado?'selected':''}>${esc(e)}</option>`).join('')}</select></td>
+  <td><button data-g="${esc(p.ID_Pendiente)}" data-t="${esc(p.Token)}" data-e="${esc(p.Estado)}" ${ed?'':'disabled title="La edición está bloqueada para esta área"'}>Guardar</button></td></tr>`;
+}
+async function vArea(id,n){
+  const h=await api('obtenerHistorialArea',{ID_Area:id}),p=h.Permisos,u=h.Ultimo_Reporte,es=CFG.Catalogos.Estado_Pendiente;
+  if(n!==NAV)return;
+  $('#sem').textContent=h.Area.Nombre_Area;
+  V.innerHTML=`<a href="#/">‹ Volver al panel</a><h2>${esc(h.Area.Nombre_Area)}</h2><p class="sub">Responsable registrado: ${esc(h.Area.Responsable)}</p>
+  <p class="cnt">${perm(p)}</p>${p.Registro_Habilitado?`<a class="btn pri" href="#/nuevo/${id}">Nuevo reporte</a>`:''}
+  <section><h3>Último reporte${u?` · semana ${u.Semana_ISO} de ${u.Anio_ISO}`:''}</h3>${u?rep(u):`<p class="msg">${esc(h.Mensaje)}</p>`}</section>
+  <section><h3>Pendientes abiertos (${h.Pendientes_Abiertos.length})</h3>${h.Pendientes_Abiertos.length?`<div class="tw"><table><thead><tr><th>ID</th><th>Pendiente</th><th>Prioridad</th><th>Responsable</th><th>Objetivo</th><th>Estado</th><th></th></tr></thead><tbody>${h.Pendientes_Abiertos.map(x=>filaP(x,p.Edicion_Habilitada,es)).join('')}</tbody></table></div>`:'<p class="msg">No hay pendientes abiertos.</p>'}</section>
+  <section><h3>Historial de reportes</h3>${h.Reportes.map(r=>`<details><summary><span class="dot ${TONO[r.Semaforo]||'gr'}"></span>Semana ${r.Semana_ISO} de ${r.Anio_ISO} · ${esc(r.Fecha_Entrega)}</summary>${rep(r)}</details>`).join('')||'<p class="msg">Aún no hay historial.</p>'}</section>`;
+}
+V.onclick=async e=>{
+  const b=e.target.closest('[data-g]');if(!b)return;
+  const est=$('select',b.closest('tr')).value;
+  if(est===b.dataset.e)return toast('El estado no cambió.');
+  if(['Cumplido','Cancelado'].includes(est)&&!confirm('¿Marcar el pendiente como '+est+'?'))return;
+  b.disabled=true;
+  try{await api('actualizarPendiente',{ID_Pendiente:b.dataset.g,Estado:est,Token_Base:b.dataset.t,Registrado_Por:quien()},true);toast('Pendiente actualizado.');ruta()}
+  catch(x){toast(x.message,true);b.disabled=false;if(x.codigo==='CONFLICTO_VERSION')ruta()}
+};
+
+/* ---------- Formulario de reporte ---------- */
+const nuevoP=()=>`<fieldset class="np"><legend>Pendiente nuevo</legend><input name="Descripcion" placeholder="Descripción" aria-label="Descripción"><select name="Prioridad" aria-label="Prioridad"><option value="">Prioridad</option>${op(CFG.Catalogos.Prioridad)}</select><input name="P_Responsable" placeholder="Responsable (si se conoce)"><input type="date" name="Fecha_Objetivo" title="Fecha objetivo, solo si se conoce"><input type="number" name="Semana_Objetivo" min="1" max="53" placeholder="Semana objetivo"><input name="Impacto_Riesgo" placeholder="Impacto o riesgo"><label><input type="checkbox" name="Requiere_Apoyo"> Requiere apoyo</label><button type="button" data-q>Quitar</button></fieldset>`;
+async function vForm(id,n){
+  const h=await api('obtenerHistorialArea',{ID_Area:id});DASH=DASH||await api('obtenerDashboard');
+  if(n!==NAV)return;
+  const a=DASH.Areas.find(x=>x.ID_Area===id)||{},p=h.Permisos,v=a.Ventana_Entrega,es=CFG.Catalogos.Estado_Pendiente,clave=verd(CFG.Configuracion.Clave_Por_Area_Habilitada);
+  $('#sem').textContent='Nuevo reporte · '+h.Area.Nombre_Area;
+  if(!p.Registro_Habilitado){V.innerHTML=`<a href="#/area/${id}">‹ Volver</a><p class="msg bad">El registro de nuevos reportes está bloqueado para ${esc(h.Area.Nombre_Area)}. Pida al administrador que lo habilite.</p>`;return}
+  const t=(n,l,r)=>`<label for="${n}">${l}</label><textarea id="${n}" name="${n}" ${r?'required':''}></textarea>`;
+  V.innerHTML=`<a href="#/area/${id}">‹ Cancelar</a><h2>Nuevo reporte semanal · ${esc(h.Area.Nombre_Area)}</h2>
+  <form id="f" class="msg" novalidate><div id="err"></div>
+  <div class="f2"><div><label for="Fecha_Entrega">Fecha de entrega</label><input type="date" id="Fecha_Entrega" name="Fecha_Entrega" value="${esc(CFG.Fecha_Hoy)}" required><div id="semc" class="sub"></div></div>
+  <div><label for="Responsable_Declarado">Responsable del reporte</label><input id="Responsable_Declarado" name="Responsable_Declarado" value="${esc(h.Area.Responsable)}" required></div>
+  <div><label for="Semaforo">Estado general (semáforo)</label><select id="Semaforo" name="Semaforo" required><option value="">Seleccione</option>${op(CFG.Catalogos.Semaforo)}</select></div>
+  <div><label for="Registrado_Por">Registrado por</label><input id="Registrado_Por" name="Registrado_Por" value="${esc(quien())}" placeholder="Su nombre"></div></div>
+  ${t('Resumen_Ejecutivo','1. Resumen ejecutivo',1)}${t('Avances','2. Avances')}${t('Alertas','Alertas')}${t('Focos_Proxima_Semana','4. Focos de la próxima semana')}${t('Apoyo_Requerido','5. Apoyo requerido de la Subgerencia')}${t('Observaciones','Observaciones')}
+  <h3>3. Pendientes</h3>
+  ${h.Pendientes_Abiertos.length?`<p class="sub">Pendientes abiertos que se arrastran. ${p.Edicion_Habilitada?'Cambie el estado solo de los que avanzaron.':'La edición está bloqueada: no se pueden cambiar sus estados.'}</p><div class="tw"><table><tbody>${h.Pendientes_Abiertos.map(x=>`<tr><td>${esc(x.ID_Pendiente)}</td><td>${esc(x.Descripcion)}<small>${esc(x.Prioridad)} · estado actual: ${esc(x.Estado)}</small></td><td><select data-pt="${esc(x.ID_Pendiente)}" data-t="${esc(x.Token)}" aria-label="Nuevo estado de ${esc(x.ID_Pendiente)}" ${p.Edicion_Habilitada?'':'disabled'}><option value="">Mantener</option>${op(es.filter(e=>e!==x.Estado))}</select></td></tr>`).join('')}</tbody></table></div>`:'<p class="sub">No hay pendientes abiertos de semanas anteriores.</p>'}
+  <div id="nps"></div><button type="button" id="addp">Agregar pendiente nuevo</button>
+  ${clave?'<label for="Clave">Clave del área</label><input type="password" id="Clave" name="Clave" autocomplete="off">':''}
+  <p><button class="pri" id="env" type="submit">Guardar reporte</button></p></form>`;
+  const f=$('#f'),semc=()=>{const s=f.elements.Fecha_Entrega.value;if(!s){$('#semc').textContent='';return}const w=iso(s);let m=`Semana ISO ${w.s} de ${w.a} (${DIAS[w.dow]})`,x='';if(v&&(w.dow<DIAS.indexOf(v.Inicio)||w.dow>DIAS.indexOf(v.Limite)))x=`<div class="aviso">Esta fecha cae fuera de la ventana de entrega (${v.Inicio} a ${v.Limite}). El reporte se registrará en la semana ${w.s}.</div>`;$('#semc').innerHTML=esc(m)+x};
+  f.elements.Fecha_Entrega.oninput=semc;semc();
+  $('#addp').onclick=()=>$('#nps').insertAdjacentHTML('beforeend',nuevoP());
+  f.onclick=e=>{const q=e.target.closest('[data-q]');if(q)q.closest('fieldset').remove()};
+  f.onsubmit=async ev=>{
+    ev.preventDefault();const bt=$('#env');if(bt.disabled)return;
+    const g=n=>f.elements[n].value.trim(),d={ID_Area:id};
+    ['Fecha_Entrega','Responsable_Declarado','Semaforo','Registrado_Por','Resumen_Ejecutivo','Avances','Alertas','Focos_Proxima_Semana','Apoyo_Requerido','Observaciones'].forEach(n=>d[n]=g(n));
+    if(clave)d.Clave=f.elements.Clave.value;
+    d.Pendientes=$$('.np',f).map(r=>({Descripcion:$('[name=Descripcion]',r).value.trim(),Prioridad:$('[name=Prioridad]',r).value,Responsable_Declarado:$('[name=P_Responsable]',r).value.trim(),Fecha_Objetivo:$('[name=Fecha_Objetivo]',r).value,Semana_Objetivo:$('[name=Semana_Objetivo]',r).value,Impacto_Riesgo:$('[name=Impacto_Riesgo]',r).value.trim(),Requiere_Apoyo:$('[name=Requiere_Apoyo]',r).checked}));
+    d.Actualizaciones_Pendientes=$$('[data-pt]',f).filter(s=>s.value).map(s=>({ID_Pendiente:s.dataset.pt,Estado:s.value,Token_Base:s.dataset.t}));
+    const falta=['Fecha_Entrega','Responsable_Declarado','Semaforo','Resumen_Ejecutivo'].filter(n=>!d[n]);
+    const err=$('#err');err.innerHTML='';
+    if(falta.length){err.innerHTML=`<p class="msg bad">Complete los campos obligatorios: ${falta.map(n=>n.replace(/_/g,' ')).join(', ')}.</p>`;return}
+    if(d.Pendientes.some(x=>!x.Descripcion||!x.Prioridad)){err.innerHTML='<p class="msg bad">Cada pendiente nuevo necesita descripción y prioridad.</p>';return}
+    bt.disabled=true;bt.textContent='Guardando…';
+    try{
+      localStorage.setItem('por',d.Registrado_Por);
+      const r=await api('registrarReporte',d,true);
+      DASH=null;toast('Reporte guardado: '+r.ID_Reporte+(r.Advertencias.length?'. '+r.Advertencias[0]:''));location.hash='#/area/'+id;
+    }catch(x){
+      err.innerHTML=`<p class="msg bad">${esc(x.message)}${x.codigo==='DUPLICADO'?` <a href="#/area/${id}">Ver reportes del área</a>`:''}</p>`;
+      bt.disabled=false;bt.textContent='Guardar reporte';err.scrollIntoView({block:'center'});
+    }
+  };
+}
+ruta();
+</script>
+</body>
+</html>
